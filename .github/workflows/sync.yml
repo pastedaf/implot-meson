@@ -1,4 +1,4 @@
-name: Sync upstream fast_io
+name: Sync upstream implot
 
 on:
   workflow_dispatch:
