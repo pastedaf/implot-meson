@@ -1,0 +1,48 @@
+name: Sync upstream fast_io
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'  # daily
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mirror upstream and keep meson.build
+        env:
+          UPSTREAM_URL: ${{ vars.UPSTREAM_URL }}
+        run: |
+          set -euxo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Configure upstream URL (override in repo Variables as UPSTREAM_URL)
+          UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/epezent/implot}"
+
+          rm -rf upstream
+          git clone --depth 1 "${UPSTREAM_URL}" upstream
+
+          # Sync everything except our CI, meson.build, and the source dir itself
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'meson.build' \
+            --exclude 'upstream' \
+            upstream/ .
+
+          UPSTREAM_SHA=$(git -C upstream rev-parse --short HEAD || echo unknown)
+          rm -rf upstream
+
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git add -A
+            git commit -m "Sync upstream ${UPSTREAM_SHA}"
+            git push
+          else
+            echo "No changes to commit"
+          fi
